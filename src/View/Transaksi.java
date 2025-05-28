@@ -6,7 +6,9 @@
 package View;
 import Services.Buku;
 import Services.TransaksiPeminjaman;
+import Services.TransaksiPengembalian;
 import View.DaftarBuku;
+import java.time.LocalDate;
 import java.util.List;
 import javax.swing.JOptionPane;
 import javax.swing.table.DefaultTableModel;
@@ -16,11 +18,17 @@ import javax.swing.table.DefaultTableModel;
  */
 public class Transaksi extends javax.swing.JFrame {
 private int userId;
+private TransaksiPeminjaman transaksiPeminjaman;
+private TransaksiPengembalian transaksiPengembalian;
     /**
      * Creates new form DaftarBuku
      */
     public Transaksi() {
         initComponents();
+        this.transaksiPeminjaman = new TransaksiPeminjaman();
+        this.transaksiPengembalian = new TransaksiPengembalian();
+        idTransaksiPeminjaman.setVisible(false); // Tidak kelihatan di UI
+        kembalikanBuku.setEnabled(false);
     }
     
     public void setUserId(int userId) {
@@ -68,6 +76,7 @@ private int userId;
         jLabel13 = new javax.swing.JLabel();
         status = new javax.swing.JTextField();
         kembalikanBuku = new javax.swing.JButton();
+        idTransaksiPeminjaman = new javax.swing.JTextField();
         jLabel6 = new javax.swing.JLabel();
         jMenuBar1 = new javax.swing.JMenuBar();
         home = new javax.swing.JMenu();
@@ -171,9 +180,21 @@ private int userId;
         kembalikanBuku.setFont(new java.awt.Font("Arial", 1, 18)); // NOI18N
         kembalikanBuku.setForeground(new java.awt.Color(255, 255, 255));
         kembalikanBuku.setText("Kembalikan Buku");
+        kembalikanBuku.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                kembalikanBukuMouseClicked(evt);
+            }
+        });
         kembalikanBuku.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 kembalikanBukuActionPerformed(evt);
+            }
+        });
+
+        idTransaksiPeminjaman.setEditable(false);
+        idTransaksiPeminjaman.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                idTransaksiPeminjamanActionPerformed(evt);
             }
         });
 
@@ -200,7 +221,6 @@ private int userId;
                         .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                             .addComponent(jLabel4)
                             .addComponent(jLabel11)
-                            .addComponent(status, javax.swing.GroupLayout.PREFERRED_SIZE, 180, javax.swing.GroupLayout.PREFERRED_SIZE)
                             .addComponent(jLabel13)
                             .addGroup(jPanel2Layout.createSequentialGroup()
                                 .addGap(48, 48, 48)
@@ -212,8 +232,10 @@ private int userId;
                                 .addGap(34, 34, 34)
                                 .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                                     .addComponent(jLabel12)
-                                    .addComponent(rakPenyimpanan, javax.swing.GroupLayout.PREFERRED_SIZE, 180, javax.swing.GroupLayout.PREFERRED_SIZE))))
-                        .addGap(0, 6, Short.MAX_VALUE)))
+                                    .addComponent(rakPenyimpanan, javax.swing.GroupLayout.PREFERRED_SIZE, 180, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                    .addComponent(idTransaksiPeminjaman, javax.swing.GroupLayout.PREFERRED_SIZE, 180, javax.swing.GroupLayout.PREFERRED_SIZE))))
+                        .addGap(0, 6, Short.MAX_VALUE))
+                    .addComponent(status, javax.swing.GroupLayout.PREFERRED_SIZE, 180, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addContainerGap())
             .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel2Layout.createSequentialGroup()
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
@@ -252,7 +274,9 @@ private int userId;
                 .addGap(12, 12, 12)
                 .addComponent(jLabel13)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(status, javax.swing.GroupLayout.PREFERRED_SIZE, 46, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGroup(jPanel2Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(status, javax.swing.GroupLayout.PREFERRED_SIZE, 46, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(idTransaksiPeminjaman, javax.swing.GroupLayout.PREFERRED_SIZE, 46, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addComponent(jLabel11)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
@@ -358,20 +382,48 @@ private int userId;
 
             // Ambil detail lengkap dari transaksi berdasarkan ID
             TransaksiPeminjaman detail = TransaksiPeminjaman.getDetailTransaksi(transaksiId);
-
+            
             if (detail != null) {
-                // Set nilai field ke tampilan (form detail)
-                KodeBuku.setText(detail.getKodeBuku());
-                judulBuku.setText(detail.getJudulBuku());
-                tanggalPeminjaman.setText(detail.getTanggalPinjam());
-                estimasiPengembalian.setText(detail.getEstimasiKembali());
-                kondisiBuku.setText(detail.getKondisiBuku());
+            // Set nilai field ke tampilan (form detail)
+            KodeBuku.setText(detail.getKodeBuku());
+            judulBuku.setText(detail.getJudulBuku());
+            tanggalPeminjaman.setText(detail.getTanggalPinjam());
+            estimasiPengembalian.setText(detail.getEstimasiKembali());
+            idTransaksiPeminjaman.setText(String.valueOf(detail.getId()));
+            
+            // Hitung denda jika belum ada atau masih 0
+            String cekPengembalian = detail.getTanggalKembali();
+            int nilaiDenda;
+            if (cekPengembalian == "Belum dikembalikan") {
+                nilaiDenda = transaksiPeminjaman.hitungDenda(detail.getEstimasiKembali());
+                // Jika ingin menyimpan denda baru ke objek (opsional)
+                detail.setDenda(nilaiDenda);
+                denda.setText(String.valueOf(nilaiDenda));
+                
+                // logika form kondisi buku
+                kondisiBuku.setEditable(true);
+                 
+            } else {
+                // menampilkan denda ketika buku sudah dikembalikan
+                if(detail.getDenda() == 0){
+                denda.setText("Dikembalikan tepat waktu");
+                }else{
                 denda.setText(String.valueOf(detail.getDenda()));
-                status.setText(detail.getStatus() ? "Belum" : "Sudah dikembalikan");
-
-                // Enable tombol kembalikan jika status "Belum dikembalikan"
-                kembalikanBuku.setEnabled(detail.getStatus());
+                }
+                
+                // disable edit form kondisi buku ketika buku sudah dikembalikan
+                kondisiBuku.setEditable(false);
+                kondisiBuku.setText(detail.getKondisiBuku());
             }
+
+            // Set status pengembalian
+            boolean sudahDikembalikan = detail.getStatus();
+            status.setText(sudahDikembalikan ? "Sudah dikembalikan" : "Belum dikembalikan");
+
+            // Aktifkan tombol hanya jika belum dikembalikan
+            kembalikanBuku.setEnabled(!sudahDikembalikan);
+        }
+
         }
     }//GEN-LAST:event_tableMouseClicked
 
@@ -400,6 +452,45 @@ private int userId;
         }
         // kalau pilih NO, aplikasi tetap berjalan
     }//GEN-LAST:event_jMenu5MouseClicked
+
+    private void idTransaksiPeminjamanActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_idTransaksiPeminjamanActionPerformed
+        // TODO add your handling code here:
+    }//GEN-LAST:event_idTransaksiPeminjamanActionPerformed
+
+    private void kembalikanBukuMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_kembalikanBukuMouseClicked
+        try {
+            // Ambil ID transaksi dari field idTransaksiPeminjaman (yang sebelumnya sudah diset)
+            int transaksiId = Integer.parseInt(idTransaksiPeminjaman.getText().trim());
+
+            // Ambil detail lagi jika diperlukan
+            TransaksiPeminjaman detail = TransaksiPeminjaman.getDetailTransaksi(transaksiId);
+            if (detail == null) {
+                JOptionPane.showMessageDialog(null, "Data transaksi tidak ditemukan!", "Kesalahan", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Ambil kondisi buku dari input
+            String kondisi = kondisiBuku.getText().trim();
+            LocalDate tanggalKembali = LocalDate.now();
+
+            // Hitung denda
+           int nilaiDenda = Integer.parseInt(denda.getText().trim());
+           String kodeBuku = KodeBuku.getText().trim();
+           
+            // Panggil method pengembalian
+           transaksiPengembalian.prosesPengembalianBuku(transaksiId, kodeBuku, tanggalKembali, nilaiDenda, kondisi);
+
+            // Optional: reset form atau refresh data tabel
+            // resetForm(); loadData();
+
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(null, "ID transaksi tidak valid.", "Input Error", JOptionPane.ERROR_MESSAGE);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Terjadi kesalahan saat mengembalikan buku:\n" + ex.getMessage(),
+                    "Kesalahan", JOptionPane.ERROR_MESSAGE);
+        }
+    }//GEN-LAST:event_kembalikanBukuMouseClicked
     
     private void loadAllDataTransaksi() {
          // Tambahkan kolom "ID" sebagai kolom pertama (untuk disembunyikan)
@@ -423,7 +514,7 @@ private int userId;
                  t.getTanggalPinjam(),
                  t.getEstimasiKembali(),
                  t.getTanggalKembali(),
-                 t.getStatus() ? "Belum" : "Sudah",
+                 t.getStatus() ? "Sudah" : "Belum",
                  t.getDenda(),
                  t.getKondisiBuku()
              };
@@ -438,27 +529,6 @@ private int userId;
          table.getColumnModel().getColumn(0).setMaxWidth(0);
          table.getColumnModel().getColumn(0).setWidth(0);
      }
-
-    private void searchBuku(String keyword) {
-        String[] kolom = {"Kode Buku","Judul Buku", "Pengarang", "Tahun Terbit", "Stok"};
-        DefaultTableModel model = new DefaultTableModel(kolom, 0);
-
-        List<Buku> daftar = Buku.searchBuku(keyword); // Ganti dengan method search dari kelas Buku
-
-        for (Buku b : daftar) {
-            Object[] row = {
-                b.getKodeBuku(),
-                b.getJudul(),
-                b.getPengarang(),
-                b.getTahunTerbit(),
-                b.getStok()
-            };
-            model.addRow(row);
-        }
-
-        table.setModel(model);
-    }
-
 
     /**
      * @param args the command line arguments
@@ -501,6 +571,7 @@ private int userId;
     private javax.swing.JTextField denda;
     private javax.swing.JTextField estimasiPengembalian;
     private javax.swing.JMenu home;
+    private javax.swing.JTextField idTransaksiPeminjaman;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel10;
     private javax.swing.JLabel jLabel11;
