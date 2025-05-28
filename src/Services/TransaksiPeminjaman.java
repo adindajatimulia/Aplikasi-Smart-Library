@@ -9,6 +9,8 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import javax.swing.JOptionPane;
 /**
  *
@@ -282,7 +284,33 @@ public class TransaksiPeminjaman {
 
         return transaksi;
     }
+    
+    public int hitungDenda(String estimasiKembaliStr) {
+        try {
+            // Format tanggal, sesuaikan dengan format estimasiKembaliStr
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd"); // Ubah jika formatnya berbeda
 
+            // Parse tanggal estimasi pengembalian
+            LocalDate estimasiKembali = LocalDate.parse(estimasiKembaliStr, formatter);
+
+            // Ambil tanggal hari ini
+            LocalDate hariIni = LocalDate.now();
+
+            // Hitung selisih hari
+            long selisihHari = ChronoUnit.DAYS.between(estimasiKembali, hariIni);
+
+            // Jika selisih positif (telat), hitung denda
+            if (selisihHari > 0) {
+                return (int) selisihHari * 2500;
+            } else {
+                return 0;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return 0;
+        }
+    }
+     
     public void updateTransaksi() {
         // update data transaksi peminjaman
     }

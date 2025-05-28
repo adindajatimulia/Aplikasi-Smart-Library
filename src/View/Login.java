@@ -211,7 +211,7 @@ private String role;
     }//GEN-LAST:event_loginActionPerformed
 
     private void loginAsPengunjungActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_loginAsPengunjungActionPerformed
-        new RegisterAnggota().setVisible(true); // Buka halaman baru
+        new FormPengunjung().setVisible(true); // Buka halaman baru
         this.dispose(); // Tutup halaman login
     }//GEN-LAST:event_loginAsPengunjungActionPerformed
 
