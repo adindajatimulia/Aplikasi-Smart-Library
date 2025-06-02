@@ -10,6 +10,7 @@ import Services.Anggota;
 import Services.Admin;
 import View.DaftarBuku;
 import View.FormPengunjung;
+import View.DaftarBukuAdmin;
 /**
  *
  * @author HP
@@ -191,6 +192,11 @@ private String role;
                 
                this.userId = admin.loginAdmin(username,password);
                this.role = "admin";
+                if(admin.loginAdmin(username,password) != -1){
+                DaftarBukuAdmin daftarBuku = new DaftarBukuAdmin();
+                daftarBuku.setVisible(true);
+                this.dispose(); // Tutup halaman login
+                }
                 
             } else if (role.equals("anggota")) {
                 
