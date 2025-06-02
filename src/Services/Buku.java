@@ -12,6 +12,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.JOptionPane;
 
 /**
  *
@@ -73,10 +74,35 @@ public class Buku {
     }
 
     // Method untuk menambahkan buku baru
-    public void createBuku(String kodeBuku, String judul, String pengarang, int tahunTerbit, String penerbit, String genre, String ringkasan, int stok) {
-        
-      
+    public void createBuku() {
+        String query = "INSERT INTO buku (kode_buku, judul_buku, pengarang, tahun_terbit, penerbit, genre, ringkasan, stock) " +
+                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        try {
+            Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(query);
+            pstmt.setString(1, this.kodeBuku);
+            pstmt.setString(2, this.judul);
+            pstmt.setString(3, this.pengarang);
+            pstmt.setInt(4, this.tahunTerbit);
+            pstmt.setString(5, this.penerbit);
+            pstmt.setString(6, this.genre);
+            pstmt.setString(7, this.ringkasan);
+            pstmt.setInt(8, this.stok);
+
+            int rowsInserted = pstmt.executeUpdate();
+            if (rowsInserted > 0) {
+                JOptionPane.showMessageDialog(null, "Buku berhasil ditambahkan.");
+            } else {
+                JOptionPane.showMessageDialog(null, "Gagal menambahkan buku.");
+            }
+
+            pstmt.close();
+            conn.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
+
 
     // Method untuk menampilkan semua buku
     public static List<Buku> getAllBuku() {
@@ -112,15 +138,61 @@ public class Buku {
     }
 
     // Method untuk memperbarui buku berdasarkan kodeBuku
-    public void updateBuku(String kodeBuku, String judul, String pengarang, int tahunTerbit,
-                              String penerbit, String genre, String ringkasan, int stok) {
-       
+    public void updateBuku() {
+        String query = "UPDATE buku SET judul_buku = ?, pengarang = ?, tahun_terbit = ?, penerbit = ?, genre = ?, ringkasan = ?, stock = ? WHERE kode_buku = ?";
+        try {
+            Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(query);
+
+            pstmt.setString(1, this.judul);
+            pstmt.setString(2, this.pengarang);
+            pstmt.setInt(3, this.tahunTerbit);
+            pstmt.setString(4, this.penerbit);
+            pstmt.setString(5, this.genre);
+            pstmt.setString(6, this.ringkasan);
+            pstmt.setInt(7, this.stok);
+            pstmt.setString(8, this.kodeBuku);  // kondisi WHERE
+
+            int rowsUpdated = pstmt.executeUpdate();
+            if (rowsUpdated > 0) {
+                JOptionPane.showMessageDialog(null, "Buku berhasil diperbarui.");
+            } else {
+                JOptionPane.showMessageDialog(null, "Gagal memperbarui buku.");
+            }
+
+            pstmt.close();
+            conn.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error saat memperbarui buku: " + e.getMessage());
+        }
     }
 
+
     // Method untuk menghapus buku berdasarkan kodeBuku
-    public void deleteBuku(String kodeBuku) {
-      
-    }
+    public void deleteBuku() {
+         String query = "DELETE FROM buku WHERE kode_buku = ?";
+         try {
+             Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query);
+
+             pstmt.setString(1, this.kodeBuku);  // kodeBuku yang akan dihapus
+
+             int rowsDeleted = pstmt.executeUpdate();
+             if (rowsDeleted > 0) {
+                 JOptionPane.showMessageDialog(null, "Buku berhasil dihapus.");
+             } else {
+                 JOptionPane.showMessageDialog(null, "Buku tidak ditemukan atau gagal dihapus.");
+             }
+
+             pstmt.close();
+             conn.close();
+         } catch (SQLException e) {
+             e.printStackTrace();
+             JOptionPane.showMessageDialog(null, "Error saat menghapus buku: " + e.getMessage());
+         }
+     }
+
 
     // Method untuk mencari buku berdasarkan judul atau pengarang
     public static List<Buku> searchBuku(String keyword) {
