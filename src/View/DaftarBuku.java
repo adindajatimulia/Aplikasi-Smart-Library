@@ -449,7 +449,6 @@ private String role;
 
         TransaksiPeminjaman transaksiPeminjaman = new TransaksiPeminjaman();
         transaksiPeminjaman.createTransaksiPinjam(this.userId, kodeBuku.getText(), 1);
-        JOptionPane.showMessageDialog(null, "Peminjaman buku berhasil dilakukan.");
 
         } else {
             int pilihan = JOptionPane.showConfirmDialog(

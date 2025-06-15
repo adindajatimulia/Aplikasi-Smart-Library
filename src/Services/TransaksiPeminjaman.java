@@ -138,107 +138,135 @@ public class TransaksiPeminjaman {
     }
     
     public void createTransaksiPinjam(int userId, String kodeBuku, int jumlah) {
-          Connection conn = DatabaseConnection.getConnection();
-          if (conn == null) {
-              System.out.println("Koneksi gagal. Tidak bisa menyimpan transaksi.");
-              return;
-          }
+        Connection conn = DatabaseConnection.getConnection();
+        if (conn == null) {
+            JOptionPane.showMessageDialog(null, "Koneksi ke database gagal.", "Koneksi Gagal", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
-          String insertSql = "INSERT INTO transaksi_pinjam_buku (user_id, kode_buku, jumlah, tanggal_pinjam, tanggal_kembali, status) " +
-                             "VALUES (?, ?, ?, ?, ?, ?)";
-          String updateStokSql = "UPDATE buku SET stock = stock - ? WHERE kode_buku = ? AND stock >= ?";
+        int totalDipinjam = 0;
 
-          try (
-              PreparedStatement insertStmt = conn.prepareStatement(insertSql);
-              PreparedStatement updateStokStmt = conn.prepareStatement(updateStokSql)
-          ) {
-              conn.setAutoCommit(false); // Transaksi manual
+        // Langkah 1: Cek jumlah buku yang sedang dipinjam user
+        try (PreparedStatement checkStmt = conn.prepareStatement(
+                "SELECT COALESCE(SUM(jumlah), 0) AS total_dipinjam " +
+                "FROM transaksi_pinjam_buku WHERE user_id = ? AND status = false")) {
 
-              LocalDate today = LocalDate.now();
-              LocalDate kembali = today.plusDays(7); // Masa pinjam 7 hari
+            checkStmt.setInt(1, userId);
+            ResultSet rs = checkStmt.executeQuery();
 
-              // 1. Insert ke tabel peminjaman
-              insertStmt.setInt(1, userId);
-              insertStmt.setString(2, kodeBuku);
-              insertStmt.setInt(3, jumlah);
-              insertStmt.setDate(4, java.sql.Date.valueOf(today));
-              insertStmt.setDate(5, java.sql.Date.valueOf(kembali));
-              insertStmt.setBoolean(6, false); // false = Belum dikembalikan
-              int inserted = insertStmt.executeUpdate();
-
-              // 2. Update stok buku
-              updateStokStmt.setInt(1, jumlah);       // stok - jumlah
-              updateStokStmt.setString(2, kodeBuku);
-              updateStokStmt.setInt(3, jumlah);       // pastikan stok cukup
-              int updated = updateStokStmt.executeUpdate();
-
-              if (inserted > 0 && updated > 0) {
-                  conn.commit();
-                  JOptionPane.showMessageDialog(null, "Transaksi peminjaman berhasil disimpan.", "Berhasil", JOptionPane.INFORMATION_MESSAGE);
-              } else {
-                  conn.rollback(); // Gagal salah satu, batalkan
-                  JOptionPane.showMessageDialog(null, "Gagal menyimpan transaksi. Periksa stok buku.", "Gagal", JOptionPane.ERROR_MESSAGE);
-              }
-
-          } catch (SQLException e) {
-              try {
-                  conn.rollback();
-              } catch (SQLException ex) {
-                  ex.printStackTrace();
-              }
-              System.out.println("Terjadi kesalahan saat menyimpan transaksi peminjaman:");
-              e.printStackTrace();
-          } finally {
-              try {
-                  conn.setAutoCommit(true); // Kembalikan ke auto
-                  conn.close();
-              } catch (SQLException e) {
-                  e.printStackTrace();
-              }
-          }
-      }
-
-
-    
-    public static List<TransaksiPeminjaman> getAllTransaksiGabungan(int idUser) {
-        List<TransaksiPeminjaman> daftar = new ArrayList<>();
-
-        String query = "SELECT t.id, b.judul_buku AS judul_buku, t.jumlah, t.tanggal_pinjam, " +
-                       "t.tanggal_kembali AS estimasi_kembali, k.tanggal_kembali, t.status, " +
-                       "k.denda, k.kondisi_buku " +
-                       "FROM transaksi_pinjam_buku t " +
-                       "JOIN buku b ON t.kode_buku = b.kode_buku " +
-                       "LEFT JOIN transaksi_pengembalian_buku k ON t.id = k.transaksi_pinjam_id " +
-                       "WHERE t.user_id = ?";
-
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(query)) {
-
-            stmt.setInt(1, idUser); // Set parameter user_id
-
-            try (ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    TransaksiPeminjaman t = new TransaksiPeminjaman();
-                    t.setId(rs.getInt("id"));
-                    t.setJudulBuku(rs.getString("judul_buku"));
-                    t.setJumlah(rs.getInt("jumlah"));
-                    t.setTanggalPinjam(rs.getDate("tanggal_pinjam").toString());
-                    t.setEstimasiKembali(rs.getDate("estimasi_kembali").toString());
-                    t.setTanggalKembali(rs.getDate("tanggal_kembali") != null
-                            ? rs.getDate("tanggal_kembali").toString()
-                            : "Belum dikembalikan");
-                    t.setStatus(rs.getBoolean("status"));
-                    t.setDenda(rs.getInt("denda"));
-                    t.setKondisiBuku(rs.getString("kondisi_buku"));
-                    daftar.add(t);
-                }
+            if (rs.next()) {
+                totalDipinjam = rs.getInt("total_dipinjam");
             }
 
         } catch (SQLException e) {
+            JOptionPane.showMessageDialog(null, "Gagal memeriksa jumlah pinjaman.", "Error", JOptionPane.ERROR_MESSAGE);
             e.printStackTrace();
+            try { conn.close(); } catch (SQLException ex) { ex.printStackTrace(); }
+            return;
         }
 
-        return daftar;
+        // Langkah 2: Validasi batas pinjaman
+        if (totalDipinjam + jumlah > 2) {
+            JOptionPane.showMessageDialog(null,
+                "Gagal melakukan peminjaman.\nAnda sudah meminjam " + totalDipinjam + " buku.\nMaksimal 2 buku yang boleh dipinjam dalam satu waktu.",
+                "Batas Peminjaman Terlampaui",
+                JOptionPane.WARNING_MESSAGE);
+            try { conn.close(); } catch (SQLException e) { e.printStackTrace(); }
+            return;
+        }
+
+        // Langkah 3: Lanjutkan transaksi jika lolos validasi
+        String insertSql = "INSERT INTO transaksi_pinjam_buku (user_id, kode_buku, jumlah, tanggal_pinjam, tanggal_kembali, status) " +
+                           "VALUES (?, ?, ?, ?, ?, ?)";
+        String updateStokSql = "UPDATE buku SET stock = stock - ? WHERE kode_buku = ? AND stock >= ?";
+
+        try (
+            PreparedStatement insertStmt = conn.prepareStatement(insertSql);
+            PreparedStatement updateStokStmt = conn.prepareStatement(updateStokSql)
+        ) {
+            conn.setAutoCommit(false);
+
+            LocalDate today = LocalDate.now();
+            LocalDate kembali = today.plusDays(7);
+
+            // Insert peminjaman
+            insertStmt.setInt(1, userId);
+            insertStmt.setString(2, kodeBuku);
+            insertStmt.setInt(3, jumlah);
+            insertStmt.setDate(4, java.sql.Date.valueOf(today));
+            insertStmt.setDate(5, java.sql.Date.valueOf(kembali));
+            insertStmt.setBoolean(6, false);
+            int inserted = insertStmt.executeUpdate();
+
+            // Update stok buku
+            updateStokStmt.setInt(1, jumlah);
+            updateStokStmt.setString(2, kodeBuku);
+            updateStokStmt.setInt(3, jumlah);
+            int updated = updateStokStmt.executeUpdate();
+
+            if (inserted > 0 && updated > 0) {
+                conn.commit();
+                JOptionPane.showMessageDialog(null, "Transaksi peminjaman berhasil disimpan.", "Berhasil", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                conn.rollback();
+                JOptionPane.showMessageDialog(null, "Gagal menyimpan transaksi. Periksa stok buku.", "Gagal", JOptionPane.ERROR_MESSAGE);
+            }
+
+        } catch (SQLException e) {
+            try { conn.rollback(); } catch (SQLException ex) { ex.printStackTrace(); }
+            JOptionPane.showMessageDialog(null, "Terjadi kesalahan saat menyimpan transaksi.", "Error", JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace();
+        } finally {
+            try {
+                conn.setAutoCommit(true);
+                conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+
+    public static List<TransaksiPeminjaman> getAllTransaksiGabungan(int idUser) {
+            List<TransaksiPeminjaman> daftar = new ArrayList<>();
+
+            String query = "SELECT t.id, b.judul_buku AS judul_buku, t.jumlah, t.tanggal_pinjam, " +
+                           "t.tanggal_kembali AS estimasi_kembali, k.tanggal_kembali, t.status, " +
+                           "k.denda, k.kondisi_buku " +
+                           "FROM transaksi_pinjam_buku t " +
+                           "JOIN buku b ON t.kode_buku = b.kode_buku " +
+                           "LEFT JOIN transaksi_pengembalian_buku k ON t.id = k.transaksi_pinjam_id " +
+                           "WHERE t.user_id = ?";
+
+            try (Connection conn = DatabaseConnection.getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(query)) {
+
+                stmt.setInt(1, idUser); // Set parameter user_id
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        TransaksiPeminjaman t = new TransaksiPeminjaman();
+                        t.setId(rs.getInt("id"));
+                        t.setJudulBuku(rs.getString("judul_buku"));
+                        t.setJumlah(rs.getInt("jumlah"));
+                        t.setTanggalPinjam(rs.getDate("tanggal_pinjam").toString());
+                        t.setEstimasiKembali(rs.getDate("estimasi_kembali").toString());
+                        t.setTanggalKembali(rs.getDate("tanggal_kembali") != null
+                                ? rs.getDate("tanggal_kembali").toString()
+                                : "Belum dikembalikan");
+                        t.setStatus(rs.getBoolean("status"));
+                        t.setDenda(rs.getInt("denda"));
+                        t.setKondisiBuku(rs.getString("kondisi_buku"));
+                        daftar.add(t);
+                    }
+                }
+
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+
+            return daftar;
     }
 
     public static TransaksiPeminjaman getDetailTransaksi(int transaksiId) {
@@ -309,18 +337,6 @@ public class TransaksiPeminjaman {
             e.printStackTrace();
             return 0;
         }
-    }
-     
-    public void updateTransaksi() {
-        // update data transaksi peminjaman
-    }
-
-    public void deleteTransaksi() {
-        // hapus transaksi
-    }
-
-    public void searchTransaksi() {
-        // cari transaksi berdasarkan parameter tertentu
     }
 
 }
